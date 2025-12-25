@@ -7,7 +7,7 @@ This document lists the security vulnerabilities I found in the project, what I 
 - **Authorization code disclosure and weak PKCE handling**
   - File: [main/java/xyz/kaaniche/phoenix/iam/security/AuthorizationCode.java](main/java/xyz/kaaniche/phoenix/iam/security/AuthorizationCode.java)
   - Vulnerability: Authorization codes contained Base64-encoded plaintext payload (tenant, username, scopes, expiry, redirect URI) and used a brittle custom verification allowing forgery and leakage.
-  - Fix: Replaced the plaintext payload with AEAD encryption (ChaCha20-Poly1305) of the full payload (tenant, user, scopes, expiry, redirect URI, and PKCE challenge). Switched to URL-safe Base64 for the code, added AAD (associated data) based on the code prefix, and used constant-time verification for PKCE. Added configuration option `authorization.code.key` (Base64) to provide a stable key across instances.
+  - Fix: Replaced the plaintext payload with AEAD encryption (AES-256-GCM) of the full payload (tenant, user, scopes, expiry, redirect URI, and PKCE challenge). Switched to URL-safe Base64 for the code, added AAD (associated data) based on the code prefix, and used constant-time verification for PKCE. Added configuration option `authorization.code.key` (Base64) to provide a stable AES key across instances. Implementation validates key length (16/24/32 bytes) and falls back to a generated AES-256 key when none is provided.
 
 - **Incomplete JWT claim validation**
   - File: [main/java/xyz/kaaniche/phoenix/iam/security/JwtManager.java](main/java/xyz/kaaniche/phoenix/iam/security/JwtManager.java)
@@ -17,7 +17,7 @@ This document lists the security vulnerabilities I found in the project, what I 
 - **Missing identity context for authorization**
   - File: [main/java/xyz/kaaniche/phoenix/iam/security/AuthenticationFilter.java](main/java/xyz/kaaniche/phoenix/iam/security/AuthenticationFilter.java)
   - Vulnerability: `IdentityUtility.setRoles(...)` was not being populated after authentication, causing authorization logic to lack role information (potentially null or wrong behavior).
-  - Fix: After successful JWT validation, the filter now sets `IdentityUtility.setRoles(...)` and `IdentityUtility.tenantWithName(...)` from JWT claims so downstream authorization checks work as intended.
+  - Fix: After successful JWT validation, the filter sets `IdentityUtility.setRoles(...)` and `IdentityUtility.tenantWithName(...)` from JWT claims so downstream authorization checks work as intended. Also fixed a null-handling bug in `isUserInRole(...)` (avoids NPE when no roles claim) and return 401 when the token is invalid or missing. Added a `ContainerResponseFilter` (`IdentityCleanupFilter`) that clears `IdentityUtility` ThreadLocal state at the end of each request to avoid identity leaking between threads.
 
 - **Unauthenticated WebSocket publishing**
   - File: [main/java/xyz/kaaniche/phoenix/iam/boundaries/PushWebSocketEndpoint.java](main/java/xyz/kaaniche/phoenix/iam/boundaries/PushWebSocketEndpoint.java)
@@ -28,6 +28,7 @@ This document lists the security vulnerabilities I found in the project, what I 
   - File: [main/java/xyz/kaaniche/phoenix/iam/boundaries/TokenEndpoint.java](main/java/xyz/kaaniche/phoenix/iam/boundaries/TokenEndpoint.java)
   - Vulnerability: The refresh flow incorrectly mixed parameters (used `code` and `code_verifier` as tokens), performed wrong claim comparisons, and returned 200 with empty body on invalid tokens.
   - Fix: Implemented a standard `refresh_token` parameter flow: validate provided refresh token JWT, extract claims (tenant, subject, scope, roles), issue a new access token and a refreshed refresh token, and return proper error responses for invalid or missing refresh tokens.
+  - Additional fixes: For the `authorization_code` flow we now validate presence of `code` and `code_verifier` and return appropriate error responses; decoding failures or PKCE mismatches result in `invalid_grant` responses instead of assertions or generic errors.
 
 **Other issues identified (not fully changed)**
 
@@ -51,12 +52,5 @@ This document lists the security vulnerabilities I found in the project, what I 
 - Implement centralized JWT signing key management (rotate keys, publish JWKS, track key IDs) rather than ephemeral in-memory keys.
 - Add unit and integration tests for the OAuth flows (authorization code, PKCE validation, refresh token flow) and WebSocket authentication.
 - Consider limiting `JWKEndpoint` exposure (rate-limit or require authentication) depending on your trust model.
-
-**How to test the changes quickly**
-
-- Build and run the service and exercise:
-  - Authorization flow (authorize → login → retrieve code → exchange with `code_verifier`).
-  - Refresh flow using `grant_type=refresh_token` and `refresh_token` param.
-  - WebSocket connect: first message must include `{"token":"<JWT>"}`; further messages are accepted after validation.
 
 

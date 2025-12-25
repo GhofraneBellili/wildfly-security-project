@@ -76,7 +76,7 @@ public class AuthenticationFilter implements ContainerRequestFilter {
 
                     @Override
                     public boolean isUserInRole(String role) {
-                        return Arrays.asList(roles).contains(role);
+                        return roles != null && Arrays.asList(roles).contains(role);
                     }
 
                     @Override
@@ -89,6 +89,10 @@ public class AuthenticationFilter implements ContainerRequestFilter {
                         return AUTHENTICATION_SCHEME;
                     }
                 });
+            }
+            else {
+                abortWithUnauthorized(requestContext);
+                return;
             }
         } catch (EJBException | ParseException | NamingException e) {
             abortWithUnauthorized(requestContext);

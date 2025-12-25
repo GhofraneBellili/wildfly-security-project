@@ -74,9 +74,16 @@ public class TokenEndpoint {
             }
             return responseError("invalid_grant", "Invalid refresh token", Response.Status.UNAUTHORIZED);
         }
+        if ("authorization_code".equals(grantType)) {
+            if (authCode == null || authCode.isEmpty() || codeVerifier == null || codeVerifier.isEmpty()) {
+                return responseError("invalid_request", "code and code_verifier are required", Response.Status.BAD_REQUEST);
+            }
+        }
         try {
             AuthorizationCode decoded  = AuthorizationCode.decode(authCode,codeVerifier);
-            assert decoded!=null;
+            if (decoded == null) {
+                return responseError("invalid_grant", "Invalid authorization code or PKCE verification failed", Response.Status.UNAUTHORIZED);
+            }
             String tenantName = decoded.tenantName();
             String accessToken = jwtManager.generateAccessToken(tenantName, decoded.identityUsername(), decoded.approvedScopes(),phoenixIAMRepository.getRoles(decoded.identityUsername()));
             String refreshToken = jwtManager.generateRefreshToken(tenantName, decoded.identityUsername(), decoded.approvedScopes());

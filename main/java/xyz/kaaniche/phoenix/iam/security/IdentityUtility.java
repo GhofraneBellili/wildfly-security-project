@@ -30,4 +30,10 @@ public class IdentityUtility {
     public static String whichTenant(){
         return IdentityUtility.tenant.get();
     }
+
+    public static void clear(){
+        IdentityUtility.username.remove();
+        IdentityUtility.roles.remove();
+        IdentityUtility.tenant.remove();
+    }
 }
