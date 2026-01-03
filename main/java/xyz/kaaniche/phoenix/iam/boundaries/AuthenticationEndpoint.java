@@ -122,36 +122,47 @@ public class AuthenticationEndpoint {
                           @FormParam("password")String password,
                           @Context UriInfo uriInfo) throws Exception {
         Identity identity = phoenixIAMRepository.findIdentityByUsername(username);
-        if(Argon2Utility.check(identity.getPassword(),password.toCharArray())){
-            logger.info("Authenticated identity:"+username);
-            MultivaluedMap<String, String> params = uriInfo.getQueryParameters();
-            Optional<Grant> grant = phoenixIAMRepository.findGrant(cookie.getValue().split("#")[0],identity.getId());
-            if(grant.isPresent()){
-                String redirectURI = buildActualRedirectURI(
-                        cookie.getValue().split("\\$")[1],params.getFirst("response_type"),
-                        cookie.getValue().split("#")[0],
-                        username,
-                        checkUserScopes(grant.get().getApprovedScopes(),cookie.getValue().split("#")[1].split("\\$")[0])
-                        ,params.getFirst("code_challenge"),params.getFirst("state")
-                );
-                return Response.seeOther(UriBuilder.fromUri(redirectURI).build()).build();
-            }else{
-                StreamingOutput stream = output -> {
-                    try (InputStream is = Objects.requireNonNull(getClass().getResource("/consent.html")).openStream()){
-                        output.write(is.readAllBytes());
-                    }
-                };
-                return Response.ok(stream).build();
-            }
-        } else {
-            logger.info("Failure when authenticating identity:"+username);
-            URI location = UriBuilder.fromUri(cookie.getValue().split("\\$")[1])
-                    .queryParam("error", "User doesn't approved the request.")
-                    .queryParam("error_description", "User doesn't approved the request.")
-                    .build();
-            return Response.seeOther(location).build();
-        }
+// 🔐 Échec authentification → STOP
+if (identity == null || !Argon2Utility.check(identity.getPassword(), password.toCharArray())) {
+    logger.warning("Authentication failed");
+    return Response.status(Response.Status.UNAUTHORIZED).build();
+}
+
+// ✅ Authentification réussie
+logger.info("Authenticated identity");
+
+MultivaluedMap<String, String> params = uriInfo.getQueryParameters();
+Optional<Grant> grant = phoenixIAMRepository.findGrant(
+        cookie.getValue().split("#")[0],
+        identity.getId()
+);
+
+if (grant.isPresent()) {
+    String redirectURI = buildActualRedirectURI(
+            cookie.getValue().split("\\$")[1],
+            params.getFirst("response_type"),
+            cookie.getValue().split("#")[0],
+            username,
+            checkUserScopes(
+                    grant.get().getApprovedScopes(),
+                    cookie.getValue().split("#")[1].split("\\$")[0]
+            ),
+            params.getFirst("code_challenge"),
+            params.getFirst("state")
+    );
+    return Response.seeOther(UriBuilder.fromUri(redirectURI).build()).build();
+}
+
+// ❓ Pas encore de consentement
+StreamingOutput stream = output -> {
+    try (InputStream is = Objects.requireNonNull(
+            getClass().getResource("/consent.html")
+    ).openStream()) {
+        output.write(is.readAllBytes());
     }
+};
+return Response.ok(stream).build();
+
 
     @PATCH
     @Path("/login/authorization")
