@@ -61,11 +61,11 @@ public class AuthenticationEndpoint {
         //1. Check tenant
         String clientId = params.getFirst("client_id");
         if (clientId == null || clientId.isEmpty()) {
-            return informUserAboutError("Invalid client_id :" + clientId);
+            return informUserAboutError("Invalid authorization request");
         }
         Tenant tenant = phoenixIAMRepository.findTenantByName(clientId);
         if (tenant == null) {
-            return informUserAboutError("Invalid client_id :" + clientId);
+            return informUserAboutError("Invalid authorization request");
         }
         //2. Client Authorized Grant Type
         if (tenant.getSupportedGrantTypes() != null && !tenant.getSupportedGrantTypes().contains("authorization_code")) {
