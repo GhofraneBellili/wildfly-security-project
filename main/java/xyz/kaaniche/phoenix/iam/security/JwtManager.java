@@ -111,27 +111,40 @@ public class  JwtManager {
             JWSVerifier verifier = new Ed25519Verifier(publicKey);
             if(parsed.verify(verifier)){
                 JWTClaimsSet claims = parsed.getJWTClaimsSet();
+                
+                // ADDED: Subject validation
+                if (claims.getSubject() == null || claims.getSubject().isEmpty()) {
+                    return Optional.empty();
+                }
+                
                 // expiration
                 if (claims.getExpirationTime() != null && claims.getExpirationTime().toInstant().isBefore(Instant.now())) {
                     return Optional.empty();
                 }
+                
                 // issuer
                 if (issuer != null && !issuer.isEmpty() && (claims.getIssuer() == null || !issuer.equals(claims.getIssuer()))) {
                     return Optional.empty();
                 }
-                // audience - at least one configured audience must be present
+                
+                // IMPROVED: audience validation
                 if (audiences != null && !audiences.isEmpty()) {
                     List<String> tokenAud = claims.getAudience();
+                    if (tokenAud == null || tokenAud.isEmpty()) {
+                        return Optional.empty();
+                    }
                     boolean ok = false;
                     for (String a : tokenAud) {
                         if (audiences.contains(a)) { ok = true; break; }
                     }
                     if (!ok) return Optional.empty();
                 }
+                
                 // not before
                 if (claims.getNotBeforeTime() != null && claims.getNotBeforeTime().toInstant().isAfter(Instant.now())) {
                     return Optional.empty();
                 }
+                
                 return Optional.of(JWTParser.parse(token));
             }
             return Optional.empty();
@@ -139,7 +152,6 @@ public class  JwtManager {
             throw new EJBException(e);
         }
     }
-
     public OctetKeyPair getPublicValidationKey(String kid){
         return cachedKeyPairs.stream()
                 .filter(kp -> kp.getKeyID().equals(kid))
