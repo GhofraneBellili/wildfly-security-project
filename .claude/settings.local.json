@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn clean package:*)",
+      "Bash(mvn package:*)",
+      "Bash(timeout /t 15 /nobreak)",
+      "Bash(ping:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)",
+      "Bash(rm:*)",
+      "Bash(mvn wildfly:deploy:*)",
+      "Bash(tasklist:*)",
+      "Bash(unzip:*)",
+      "Bash(mvn wildfly:deploy-only:*)",
+      "Bash(mvn wildfly:redeploy:*)"
+    ]
+  }
+}
