@@ -89,6 +89,6 @@ public class AuthorizationFilter implements ContainerRequestFilter {
     }
 
     private void refuseRequest() {
-        throw new WebApplicationException("You don't have permissions to perform this action.", Response.Status.FORBIDDEN); // Changed from UNAUTHORIZED
+        throw new WebApplicationException("You don't have permissions to perform this action.", Response.Status.UNAUTHORIZED);
     }
 }
