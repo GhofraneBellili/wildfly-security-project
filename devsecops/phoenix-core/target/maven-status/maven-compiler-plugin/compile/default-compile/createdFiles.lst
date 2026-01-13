@@ -1,0 +1,5 @@
+xyz\kaaniche\phoenix\core\controllers\GenericDAO.class
+xyz\kaaniche\phoenix\core\entities\RootEntity.class
+xyz\kaaniche\phoenix\core\entities\CompoundPK.class
+xyz\kaaniche\phoenix\core\entities\CompoundPKEntity.class
+xyz\kaaniche\phoenix\core\entities\SimplePKEntity.class

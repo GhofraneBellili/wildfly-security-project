@@ -1,96 +1,42 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { supabase, Profile } from '../lib/supabase';
+import { UserProfile, isAuthenticated, getCurrentUser, logout, startOAuth2Login } from '../lib/oauth2Client';
 
 type AuthContextType = {
-  user: User | null;
-  profile: Profile | null;
+  user: UserProfile | null;
+  profile: UserProfile | null;
   loading: boolean;
   signUp: (email: string, password: string, role: 'business' | 'buyer', businessName?: string) => Promise<{ error: Error | null }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadProfile(session.user.id);
-      } else {
-        setLoading(false);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      (async () => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await loadProfile(session.user.id);
-        } else {
-          setProfile(null);
-          setLoading(false);
-        }
-      })();
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  async function loadProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
-
-    if (!error && data) {
-      setProfile(data);
+    // Check if user is already authenticated
+    if (isAuthenticated()) {
+      const currentUser = getCurrentUser();
+      setUser(currentUser);
+      setProfile(currentUser);
     }
     setLoading(false);
+  }, []);
+
+  async function signUp(_email: string, _password: string, _role: 'business' | 'buyer', _businessName?: string) {
+    // IAM handles registration separately, not through the app
+    // For now, return error indicating to use IAM registration
+    return { error: new Error('Please register through the IAM system') };
   }
 
-  async function signUp(email: string, password: string, role: 'business' | 'buyer', businessName?: string) {
+  async function signIn() {
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (signUpError) throw signUpError;
-      if (!data.user) throw new Error('No user returned');
-
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .insert({
-          id: data.user.id,
-          email,
-          role,
-          business_name: role === 'business' ? businessName : null,
-        });
-
-      if (profileError) throw profileError;
-
-      return { error: null };
-    } catch (error) {
-      return { error: error as Error };
-    }
-  }
-
-  async function signIn(email: string, password: string) {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
+      await startOAuth2Login();
+      // This will redirect to IAM, so no return needed
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -98,7 +44,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
-    await supabase.auth.signOut();
+    logout();
+    setUser(null);
+    setProfile(null);
   }
 
   return (
