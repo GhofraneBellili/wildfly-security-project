@@ -23,6 +23,18 @@ public class AuditLog {
     @Column
     private String ipAddress;
 
+    @Column
+    private String userAgent;
+
+    @Column
+    private String correlationId;
+
+    @Column
+    private String sessionId;
+
+    @Column
+    private String eventType;
+
     @Column(nullable = false)
     private Instant timestamp;
 

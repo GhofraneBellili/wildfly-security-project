@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { UserProfile, isAuthenticated, getCurrentUser, logout, startOAuth2Login, apiLogin, apiVerifyMfa, apiSetupMfa, apiEnableMfa } from '../lib/oauth2Client';
+import { UserProfile, isAuthenticated, getCurrentUser, logout, startOAuth2Login, apiLogin, apiVerifyMfa, apiSetupMfa, apiEnableMfa, apiRegister } from '../lib/oauth2Client';
 
 type AuthContextType = {
   user: UserProfile | null;
   profile: UserProfile | null;
   loading: boolean;
-  signUp: (email: string, password: string, role: 'business' | 'buyer', businessName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, username: string, password: string, role: 'business' | 'buyer', businessName?: string) => Promise<{ error: Error | null }>;
   signIn: () => Promise<{ error: Error | null }>;
   signInWithCredentials: (username: string, password: string) => Promise<{ error: Error | null; mfaRequired?: boolean }>;
   verifyMfa: (username: string, code: string) => Promise<{ error: Error | null }>;
@@ -31,10 +31,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(false);
   }, []);
 
-  async function signUp(_email: string, _password: string, _role: 'business' | 'buyer', _businessName?: string) {
-    // IAM handles registration separately, not through the app
-    // For now, return error indicating to use IAM registration
-    return { error: new Error('Please register through the IAM system') };
+  async function signUp(email: string, username: string, password: string, role: 'business' | 'buyer', businessName?: string) {
+    try {
+      const { success, error } = await apiRegister(email, username, password, role, businessName);
+      if (success) {
+        return { error: null };
+      } else {
+        return { error: new Error(error || 'Registration failed') };
+      }
+    } catch (error) {
+      return { error: error as Error };
+    }
   }
 
   async function signIn() {

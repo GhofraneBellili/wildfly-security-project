@@ -30,4 +30,8 @@ public class IdentityUtility {
     public static String whichTenant(){
         return IdentityUtility.tenant.get();
     }
+
+    public static String getCurrentUser(){
+        return whoAmI();
+    }
 }

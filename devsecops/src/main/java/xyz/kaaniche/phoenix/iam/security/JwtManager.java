@@ -16,8 +16,13 @@ import jakarta.ejb.EJBException;
 import jakarta.ejb.LocalBean;
 import jakarta.ejb.Singleton;
 import jakarta.ejb.Startup;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
+import xyz.kaaniche.phoenix.iam.controllers.TokenBlacklistRepository;
+import xyz.kaaniche.phoenix.iam.controllers.AuditLogRepository;
+import xyz.kaaniche.phoenix.iam.entities.AuditLog;
+
 import java.text.ParseException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -40,6 +45,12 @@ public class  JwtManager {
     private final List<String> audiences = config.getValues("jwt.audiences",String.class);
     private final String claimRoles = config.getValue("jwt.claim.roles",String.class);
     private final OctetKeyPairGenerator keyPairGenerator = new OctetKeyPairGenerator(Curve.Ed25519);
+
+    @Inject
+    private TokenBlacklistRepository tokenBlacklistRepository;
+
+    @Inject
+    private AuditLogRepository auditLogRepository;
 
     @PostConstruct
     public void start(){
@@ -73,7 +84,14 @@ public class  JwtManager {
                     .build();
             SignedJWT signedJWT = new SignedJWT(header,claimsSet);
             signedJWT.sign(signer);
-            return signedJWT.serialize();
+            String token = signedJWT.serialize();
+
+            // Log token issuance
+            auditLogRepository.save(new AuditLog(subject, "TOKEN_ISSUED",
+                "Access token issued for scopes: " + approvedScopes + ", roles: " + String.join(",", roles),
+                null)); // IP address not available here
+
+            return token;
         } catch (JOSEException e) {
             throw new EJBException(e);
         }
@@ -103,6 +121,14 @@ public class  JwtManager {
     public Optional<JWT> validateJWT(String token){
         try {
             SignedJWT parsed = SignedJWT.parse(token);
+            JWTClaimsSet claimsSet = parsed.getJWTClaimsSet();
+
+            // Check if token is blacklisted
+            String jti = claimsSet.getJWTID();
+            if (jti != null && tokenBlacklistRepository.isTokenBlacklisted(jti)) {
+                return Optional.empty();
+            }
+
             OctetKeyPair publicKey = cachedKeyPairs.stream()
                     .filter(kp -> kp.getKeyID().equals(parsed.getHeader().getKeyID()))
                     .findFirst()
@@ -110,7 +136,7 @@ public class  JwtManager {
                     .toPublicJWK();
             JWSVerifier verifier = new Ed25519Verifier(publicKey);
             if(parsed.verify(verifier)){
-                if(parsed.getJWTClaimsSet().getExpirationTime().toInstant().isBefore(Instant.now())){
+                if(claimsSet.getExpirationTime().toInstant().isBefore(Instant.now())){
                     return Optional.empty();
                 }
                 return Optional.of(JWTParser.parse(token));
@@ -162,5 +188,27 @@ public class  JwtManager {
 
     public String getClaimRoles() {
         return claimRoles;
+    }
+
+    public void revokeToken(String token, String revokedBy, String reason) {
+        try {
+            SignedJWT parsed = SignedJWT.parse(token);
+            JWTClaimsSet claimsSet = parsed.getJWTClaimsSet();
+            String jti = claimsSet.getJWTID();
+            String subject = claimsSet.getSubject();
+            if (jti != null) {
+                LocalDateTime expirationTime = LocalDateTime.ofInstant(
+                    claimsSet.getExpirationTime().toInstant(),
+                    ZoneId.systemDefault()
+                );
+                tokenBlacklistRepository.blacklistToken(jti, expirationTime, revokedBy, reason);
+
+                // Log token revocation
+                auditLogRepository.save(new AuditLog(subject, "TOKEN_REVOKED",
+                    "Token revoked by " + revokedBy + ": " + reason, null));
+            }
+        } catch (ParseException e) {
+            throw new EJBException("Invalid token format", e);
+        }
     }
 }

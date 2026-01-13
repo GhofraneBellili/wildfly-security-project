@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase, Product } from '../lib/supabase';
 import { ShoppingCart, LogOut, Package, Search, Filter } from 'lucide-react';
+import { requestJITAccess, getPendingJITRequests, getMyJITAccess, approveJITRequest, revokeJITRequest, isAdmin, JITRequest } from '../lib/oauth2Client';
 
 type ProductWithBusiness = Product & {
   profiles: {
@@ -17,6 +18,17 @@ export default function Marketplace() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'product' | 'service'>('all');
   const [cart, setCart] = useState<{ [key: string]: number }>({});
+
+  // JIT Access state
+  const [, setJitRequests] = useState<JITRequest[]>([]);
+  const [, setMyJITAccess] = useState<JITRequest[]>([]);
+  const [, setShowJITForm] = useState(false);
+  const [jitForm, setJitForm] = useState({
+    privilegeType: '',
+    justification: '',
+    expirationTime: ''
+  });
+  const [, setJitLoading] = useState(false);
 
   useEffect(() => {
     loadProducts();
@@ -80,7 +92,7 @@ export default function Marketplace() {
       if (!product) return null;
 
       return supabase.from('orders').insert({
-        buyer_id: profile?.id,
+        buyer_id: profile?.sub,
         product_id: productId,
         quantity,
         total_price: product.price * quantity,
@@ -99,6 +111,70 @@ export default function Marketplace() {
   }, 0);
 
   const cartItemCount = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
+
+  // JIT Access functions
+  // @ts-ignore - unused function kept for future implementation
+  async function handleJITRequest(e: React.FormEvent) {
+    e.preventDefault();
+    setJitLoading(true);
+
+    const { success, error } = await requestJITAccess(
+      jitForm.privilegeType,
+      jitForm.justification,
+      jitForm.expirationTime
+    );
+
+    if (success) {
+      alert('JIT access request submitted successfully!');
+      setShowJITForm(false);
+      setJitForm({ privilegeType: '', justification: '', expirationTime: '' });
+      loadMyJITAccess();
+    } else {
+      alert(`Failed to submit request: ${error}`);
+    }
+
+    setJitLoading(false);
+  }
+
+  async function loadPendingJITRequests() {
+    if (!isAdmin()) return;
+    const requests = await getPendingJITRequests();
+    setJitRequests(requests);
+  }
+
+  async function loadMyJITAccess() {
+    const access = await getMyJITAccess();
+    setMyJITAccess(access);
+  }
+
+  // @ts-ignore - unused function kept for future implementation
+  async function handleApproveJIT(requestId: number) {
+    const { success, error } = await approveJITRequest(requestId);
+    if (success) {
+      alert('JIT request approved!');
+      loadPendingJITRequests();
+    } else {
+      alert(`Failed to approve: ${error}`);
+    }
+  }
+
+  // @ts-ignore - unused function kept for future implementation
+  async function handleRevokeJIT(requestId: number) {
+    const { success, error } = await revokeJITRequest(requestId);
+    if (success) {
+      alert('JIT request revoked!');
+      loadPendingJITRequests();
+    } else {
+      alert(`Failed to revoke: ${error}`);
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin()) {
+      loadPendingJITRequests();
+    }
+    loadMyJITAccess();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -29,6 +29,12 @@ public class PhoenixIAMRepository {
                 .getSingleResult();
     }
 
+    public Identity findIdentityByEmail(String email){
+        return entityManager.createQuery("select i from Identity i where email=:email",Identity.class)
+                .setParameter("email",email)
+                .getSingleResult();
+    }
+
     public Optional<Grant> findGrant(String tenantName,Long identityId){
         Tenant tenant = findTenantByName(tenantName);
         if(tenant==null){

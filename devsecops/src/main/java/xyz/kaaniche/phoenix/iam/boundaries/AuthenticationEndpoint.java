@@ -11,7 +11,6 @@ import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.Cookie;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.MultivaluedMap;
@@ -28,7 +27,9 @@ import xyz.kaaniche.phoenix.iam.entities.Identity;
 import xyz.kaaniche.phoenix.iam.entities.Tenant;
 import xyz.kaaniche.phoenix.iam.security.Argon2Utility;
 import xyz.kaaniche.phoenix.iam.security.AuthorizationCode;
+import xyz.kaaniche.phoenix.iam.security.BruteForceProtection;
 import xyz.kaaniche.phoenix.iam.security.MfaUtility;
+import xyz.kaaniche.phoenix.iam.security.SessionManager;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.ws.rs.core.Context;
@@ -62,6 +63,12 @@ public class AuthenticationEndpoint {
 
     @Inject
     AuditLogRepository auditLogRepository;
+
+    @Inject
+    BruteForceProtection bruteForceProtection;
+
+    @Inject
+    SessionManager sessionManager;
 
     @GET
     @Produces(MediaType.TEXT_HTML)
@@ -348,6 +355,79 @@ public class AuthenticationEndpoint {
         return Response.status(Response.Status.BAD_REQUEST).entity("{\"success\":false}").build();
     }
 
+    @POST
+    @Path("/api/register")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response apiRegister(String body, @Context HttpServletRequest request) {
+        try {
+            String email = extractJsonValue(body, "email");
+            String username = extractJsonValue(body, "username");
+            String password = extractJsonValue(body, "password");
+            String role = extractJsonValue(body, "role");
+            String businessName = extractJsonValue(body, "businessName");
+            String ipAddress = getClientIpAddress(request);
+
+            // Validate required fields
+            if (email == null || email.isEmpty() || username == null || username.isEmpty() ||
+                password == null || password.isEmpty() || role == null || role.isEmpty()) {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("{\"success\":false, \"error\":\"Missing required fields\"}")
+                        .build();
+            }
+
+            // Check if user already exists
+            if (phoenixIAMRepository.findIdentityByUsername(username) != null) {
+                return Response.status(Response.Status.CONFLICT)
+                        .entity("{\"success\":false, \"error\":\"Username already exists\"}")
+                        .build();
+            }
+
+            if (phoenixIAMRepository.findIdentityByEmail(email) != null) {
+                return Response.status(Response.Status.CONFLICT)
+                        .entity("{\"success\":false, \"error\":\"Email already exists\"}")
+                        .build();
+            }
+
+            // Hash password
+            String passwordHash = Argon2Utility.hash(password.toCharArray());
+
+            // Create new identity
+            Identity identity = new Identity();
+            identity.setUsername(username);
+            identity.setEmail(email);
+            identity.setPasswordHash(passwordHash);
+            identity.setEnabled(true);
+
+            // Set role (basic mapping - business=4, buyer=8, adjust as needed)
+            long roleValue = 0L;
+            if ("business".equals(role)) {
+                roleValue = 4L; // Business role
+                if (businessName != null && !businessName.isEmpty()) {
+                    identity.setFirstName(businessName); // Store business name as first name for now
+                }
+            } else if ("buyer".equals(role)) {
+                roleValue = 8L; // Buyer role
+            }
+            identity.setRoles(roleValue);
+
+            // Save identity
+            phoenixIAMRepository.save(identity);
+
+            // Log registration
+            auditLogRepository.save(new AuditLog(username, "USER_REGISTERED", "User registered successfully", ipAddress));
+
+            logger.info("User registered successfully: {}", username);
+            return Response.ok().entity("{\"success\":true}").build();
+
+        } catch (Exception e) {
+            logger.error("Registration failed", e);
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("{\"success\":false, \"error\":\"Registration failed\"}")
+                    .build();
+        }
+    }
+
     @GET
     @Path("/api/audit/logs")
     @Produces(MediaType.APPLICATION_JSON)
@@ -453,5 +533,34 @@ public class AuthenticationEndpoint {
                 </body>
                 </html>
                 """.formatted(error)).build();
+    }
+
+    private boolean shouldRequireMfa(Identity identity, String ipAddress) {
+        // Require MFA for ROOT role users
+        if (identity.getRoles() != null && (identity.getRoles() & 1) != 0) { // Assuming ROOT is bit 0
+            return true;
+        }
+
+        // Require MFA for privileged roles (ADMIN, etc.)
+        if (identity.getRoles() != null && (identity.getRoles() & 2) != 0) { // Assuming ADMIN is bit 1
+            return true;
+        }
+
+        // Require MFA for remote access (not local network)
+        if (!isLocalNetwork(ipAddress)) {
+            return true;
+        }
+
+        // Check if user has explicitly enabled MFA
+        return Boolean.TRUE.equals(identity.getRequiresMfa());
+    }
+
+    private boolean isLocalNetwork(String ipAddress) {
+        // Simple check for local/private networks
+        return ipAddress.startsWith("192.168.") ||
+               ipAddress.startsWith("10.") ||
+               ipAddress.startsWith("172.") ||
+               ipAddress.equals("127.0.0.1") ||
+               ipAddress.equals("localhost");
     }
 }

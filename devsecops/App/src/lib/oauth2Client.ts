@@ -26,6 +26,18 @@ export interface UserProfile {
   scope?: string;
 }
 
+export interface JITRequest {
+  id?: number;
+  requesterId: string;
+  privilegeType: string;
+  justification: string;
+  expirationTime: string;
+  status: 'PENDING' | 'APPROVED' | 'REVOKED';
+  requestTime?: string;
+  approverId?: string;
+  approvalTime?: string;
+}
+
 /**
  * Generate PKCE code verifier (random string)
  */
@@ -347,6 +359,128 @@ export async function apiEnableMfa(secret: string, code: string): Promise<{ succ
     return data;
   } catch (error) {
     return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Check if current user has admin role
+ */
+export function isAdmin(): boolean {
+  const user = getCurrentUser();
+  return user?.groups?.includes('ADMIN') || false;
+}
+
+/**
+ * Register a new user
+ */
+export async function apiRegister(email: string, username: string, password: string, role: 'business' | 'buyer', businessName?: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${IAM_URL}/api/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        username,
+        password,
+        role,
+        businessName: role === 'business' ? businessName : undefined
+      })
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Request JIT access
+ */
+export async function requestJITAccess(privilegeType: string, justification: string, expirationTime: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await authenticatedFetch(`${IAM_URL}/jit/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        privilegeType,
+        justification,
+        expirationTime
+      })
+    });
+
+    const data = await response.json();
+    return { success: response.ok, error: response.ok ? undefined : data.error };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Get pending JIT requests (admin only)
+ */
+export async function getPendingJITRequests(): Promise<JITRequest[]> {
+  try {
+    const response = await authenticatedFetch(`${IAM_URL}/jit/requests`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch pending requests');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching pending JIT requests:', error);
+    return [];
+  }
+}
+
+/**
+ * Approve JIT request (admin only)
+ */
+export async function approveJITRequest(requestId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await authenticatedFetch(`${IAM_URL}/jit/approve/${requestId}`, {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+    return { success: response.ok, error: response.ok ? undefined : data.error };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Revoke JIT request (admin only)
+ */
+export async function revokeJITRequest(requestId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await authenticatedFetch(`${IAM_URL}/jit/revoke/${requestId}`, {
+      method: 'POST'
+    });
+
+    const data = await response.json();
+    return { success: response.ok, error: response.ok ? undefined : data.error };
+  } catch (error) {
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Get user's active JIT access
+ */
+export async function getMyJITAccess(): Promise<JITRequest[]> {
+  try {
+    const response = await authenticatedFetch(`${IAM_URL}/jit/my-access`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch JIT access');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching JIT access:', error);
+    return [];
   }
 }
 
