@@ -1,5 +1,7 @@
 package xyz.kaaniche.phoenix.iam.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -25,6 +27,8 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
     @Size(max = 100)
     private String email;
 
+    // CRITICAL FIX: Prevent password hash from being serialized
+    @JsonIgnore  // Prevents JSON serialization
     @Column(name = "password_hash", nullable = false)
     @NotBlank
     private String passwordHash;
@@ -48,6 +52,9 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
     @Column(name = "updated_at")
     private Date updatedAt;
 
+    // CRITICAL FIX: Prevent MFA secret from being serialized AND encrypt in database
+    @JsonIgnore
+    @Convert(converter = xyz.kaaniche.phoenix.iam.security.EncryptedFieldConverter.class)
     @Column(name = "mfa_secret")
     private String mfaSecret;
 
@@ -79,10 +86,14 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
         this.email = email;
     }
 
+    // CRITICAL FIX: Only allow reading internally, never via JSON
+    @JsonIgnore
     public String getPasswordHash() {
         return passwordHash;
     }
 
+    // CRITICAL FIX: Only allow setting via JSON (for registration/password change)
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
@@ -127,10 +138,13 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
         this.updatedAt = updatedAt;
     }
 
+    // CRITICAL FIX: Never expose MFA secret
+    @JsonIgnore
     public String getMfaSecret() {
         return mfaSecret;
     }
 
+    @JsonIgnore
     public void setMfaSecret(String mfaSecret) {
         this.mfaSecret = mfaSecret;
     }
@@ -151,13 +165,22 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
         this.roles = roles;
     }
 
-    // Convenience method for password (returns passwordHash)
-    public String getPassword() {
-        return passwordHash;
+    // REMOVED: This method was a critical security vulnerability
+    // public String getPassword() { return passwordHash; }
+    
+    // ADDED: Safe method for authentication (internal use only)
+    @JsonIgnore
+    public boolean checkPassword(String plainPassword) {
+        // This should delegate to your password hashing utility
+        return xyz.kaaniche.phoenix.iam.security.Argon2Utility.check(
+            this.passwordHash, 
+            plainPassword.toCharArray()
+        );
     }
 
     // Principal methods
     @Override
+    @JsonIgnore
     public String getName() {
         return username;
     }
@@ -184,5 +207,6 @@ public class Identity extends SimplePKEntity<Long> implements Principal {
                 ", enabled=" + enabled +
                 ", createdAt=" + createdAt +
                 '}';
+        // NOTE: Intentionally NOT including passwordHash or mfaSecret in toString
     }
 }
