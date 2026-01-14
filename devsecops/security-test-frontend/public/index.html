@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IAM Security Testing Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Phoenix IAM Security Testing Dashboard</h1>
+            <p>Comprehensive security testing interface for IAM backend</p>
+        </header>
+
+        <div class="test-summary">
+            <div class="stat-card">
+                <div class="stat-number" id="totalTests">0</div>
+                <div class="stat-label">Total Tests</div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-number" id="passedTests">0</div>
+                <div class="stat-label">Passed</div>
+            </div>
+            <div class="stat-card failure">
+                <div class="stat-number" id="failedTests">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number" id="passRate">0%</div>
+                <div class="stat-label">Pass Rate</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="runAllTests()" class="btn btn-primary">Run All Tests</button>
+            <button onclick="clearResults()" class="btn btn-secondary">Clear Results</button>
+            <button onclick="exportResults()" class="btn btn-secondary">Export Report</button>
+        </div>
+
+        <!-- Test Categories -->
+        <div class="test-category">
+            <div class="category-header" onclick="toggleCategory('auth')">
+                <h2>Authentication Tests</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div id="auth" class="category-content">
+                <div class="test-group">
+                    <h3>Login Tests</h3>
+                    <button onclick="testLogin()" class="btn">Test Valid Login</button>
+                    <button onclick="testInvalidLogin()" class="btn">Test Invalid Login</button>
+                    <button onclick="testSQLInjectionLogin()" class="btn">Test SQL Injection</button>
+                    <button onclick="testXSSLogin()" class="btn">Test XSS Attack</button>
+                </div>
+
+                <div class="test-group">
+                    <h3>Registration Tests</h3>
+                    <button onclick="testRegistration()" class="btn">Test Valid Registration</button>
+                    <button onclick="testDuplicateRegistration()" class="btn">Test Duplicate Username</button>
+                    <button onclick="testInvalidEmail()" class="btn">Test Invalid Email</button>
+                </div>
+
+                <div class="test-group">
+                    <h3>OAuth/PKCE Tests</h3>
+                    <button onclick="testOAuthAuthorize()" class="btn">Test OAuth Authorize</button>
+                    <button onclick="testInvalidPKCE()" class="btn">Test Invalid PKCE</button>
+                    <button onclick="testMissingCodeChallenge()" class="btn">Test Missing Challenge</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-category">
+            <div class="category-header" onclick="toggleCategory('jwt')">
+                <h2>Authorization & JWT Tests</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div id="jwt" class="category-content">
+                <div class="test-group">
+                    <h3>Token Tests</h3>
+                    <button onclick="testTokenExchange()" class="btn">Test Token Exchange</button>
+                    <button onclick="testInvalidToken()" class="btn">Test Invalid Token</button>
+                    <button onclick="testExpiredToken()" class="btn">Test Expired Token</button>
+                    <button onclick="testJWK()" class="btn">Test JWK Endpoint</button>
+                </div>
+
+                <div class="test-group">
+                    <h3>Access Control Tests</h3>
+                    <button onclick="testProtectedEndpointNoAuth()" class="btn">Test Without Auth</button>
+                    <button onclick="testRoleBasedAccess()" class="btn">Test Role-Based Access</button>
+                    <button onclick="testScopeValidation()" class="btn">Test Scope Validation</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-category">
+            <div class="category-header" onclick="toggleCategory('mfa')">
+                <h2>MFA & Security Tests</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div id="mfa" class="category-content">
+                <div class="test-group">
+                    <h3>MFA Tests</h3>
+                    <button onclick="testMFASetup()" class="btn">Test MFA Setup</button>
+                    <button onclick="testMFAVerify()" class="btn">Test MFA Verification</button>
+                    <button onclick="testInvalidMFACode()" class="btn">Test Invalid MFA Code</button>
+                </div>
+
+                <div class="test-group">
+                    <h3>Brute Force Tests</h3>
+                    <button onclick="testBruteForce()" class="btn">Test Multiple Failed Logins</button>
+                    <button onclick="testRateLimiting()" class="btn">Test Rate Limiting</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-category">
+            <div class="category-header" onclick="toggleCategory('injection')">
+                <h2>Input Sanitization Tests</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div id="injection" class="category-content">
+                <div class="test-group">
+                    <h3>Injection Tests</h3>
+                    <button onclick="testXSSPayload()" class="btn">Test XSS Injection</button>
+                    <button onclick="testSQLInjection()" class="btn">Test SQL Injection</button>
+                    <button onclick="testCommandInjection()" class="btn">Test Command Injection</button>
+                    <button onclick="testPathTraversal()" class="btn">Test Path Traversal</button>
+                    <button onclick="testLDAPInjection()" class="btn">Test LDAP Injection</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="test-category">
+            <div class="category-header" onclick="toggleCategory('jit')">
+                <h2>JIT Access Tests</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div id="jit" class="category-content">
+                <div class="test-group">
+                    <h3>JIT Request Tests</h3>
+                    <button onclick="testJITRequest()" class="btn">Test Create JIT Request</button>
+                    <button onclick="testJITRequestWithoutAuth()" class="btn">Test Without Auth</button>
+                    <button onclick="testGetJITRequests()" class="btn">Test Get Pending Requests</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Results -->
+        <div class="results-section">
+            <h2>Test Results</h2>
+            <div id="results" class="results-container"></div>
+        </div>
+
+        <!-- Configuration Panel -->
+        <div class="config-panel">
+            <h3>Test Configuration</h3>
+            <div class="form-group">
+                <label>Test Username:</label>
+                <input type="text" id="testUsername" value="testuser" />
+            </div>
+            <div class="form-group">
+                <label>Test Password:</label>
+                <input type="password" id="testPassword" value="Test@123456" />
+            </div>
+            <div class="form-group">
+                <label>Test Email:</label>
+                <input type="email" id="testEmail" value="testuser@example.com" />
+            </div>
+            <div class="form-group">
+                <label>Client ID:</label>
+                <input type="text" id="clientId" value="test-client" />
+            </div>
+            <div class="form-group">
+                <label>Redirect URI:</label>
+                <input type="text" id="redirectUri" value="http://localhost:3000/callback" />
+            </div>
+            <div class="form-group">
+                <label>OAuth Scope:</label>
+                <input type="text" id="scope" value="openid profile email" />
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

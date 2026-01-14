@@ -1,0 +1,27 @@
+{
+  "name": "iam-security-test-frontend",
+  "version": "1.0.0",
+  "description": "Frontend Security Testing Application for Phoenix IAM Backend",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "security",
+    "testing",
+    "iam",
+    "authentication"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.0",
+    "crypto": "^1.0.1",
+    "totp-generator": "^1.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}
