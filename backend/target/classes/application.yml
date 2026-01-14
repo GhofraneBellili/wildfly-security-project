@@ -1,0 +1,17 @@
+server:
+  port: 8080
+
+spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+  main:
+    allow-circular-references: true
+
+security:
+  jwt:
+    secret: "change-this-secret-to-a-very-long-random-value-please-change" # change in production (use env var)
+    expiration-ms: 3600000 # 1 hour
+
+frontend:
+  allowed-origin: "http://localhost:3000" # change en prod
