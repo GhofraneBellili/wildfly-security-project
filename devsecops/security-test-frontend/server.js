@@ -4,7 +4,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
 
 // Middleware
 app.use(express.json());

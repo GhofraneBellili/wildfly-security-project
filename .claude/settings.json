@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(start \"WildFly Server\" cmd /c \"cd /d C:\\\\Users\\\\boula\\\\Downloads\\\\wildfly-39.0.0.Beta1\\\\wildfly-39.0.0.Beta1\\\\bin && standalone.bat -Djboss.socket.binding.port-offset=2020\")"
-    ]
-  }
-}
